@@ -1,0 +1,16 @@
+*.ipch
+*.obj
+*.db
+*.log
+*.pdb
+*.idb
+*.tlog
+*.lastbuildstate
+*.ipdb
+*.iobj
+*.exe
+*.opendb
+*.exp
+.vs/NeuralNetwork/v15/Solution.VC.db-wal
+*.db-shm
+*.ini
