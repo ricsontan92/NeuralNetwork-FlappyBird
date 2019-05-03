@@ -118,10 +118,17 @@ void GUIManager::RenderGameInfo()
 		m_sceneMgr.SetSceneSpeed(m_sceneMgr.GetSceneSpeed() >> 1);
 	}
 
-	ImGui::Text("Current Score:\t%d",	m_sceneMgr.GetTrainingScene()->GetCurrentScore());
-	ImGui::Text("Max Score:\t%d",		m_sceneMgr.GetTrainingScene()->GetMaxScore());
-	ImGui::Text("Current Gen:\t%d",		m_sceneMgr.GetTrainingScene()->GetCurrentGeneration());
-	ImGui::Text("Birds Alive:\t%d",		m_sceneMgr.GetTrainingScene()->GetLiveBirdCount());
+	ImGui::SameLine();
+	ImGui::Text("(x%d)", m_sceneMgr.GetSceneSpeed());
+
+	ImGui::Text("Current Score: %d",	m_sceneMgr.GetTrainingScene()->GetCurrentScore());
+	ImGui::Text("Highest Score: %d",	m_sceneMgr.GetTrainingScene()->GetMaxScore());
+	ImGui::Text("Generation: %d",		m_sceneMgr.GetTrainingScene()->GetCurrentGeneration());
+	ImGui::Text("Birds Alive: %d/%d",	m_sceneMgr.GetTrainingScene()->GetLiveBirdCount(), m_scenConfig.m_agentCount);
+
+	bool debugRender = m_sceneMgr.GetDebugRender();
+	ImGui::Checkbox("Debug Render", &debugRender);
+	m_sceneMgr.SetDebugRender(debugRender);
 
 	ImGui::End();
 }

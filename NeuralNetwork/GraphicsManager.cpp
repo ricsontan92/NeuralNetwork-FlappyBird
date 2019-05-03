@@ -79,8 +79,15 @@ Camera const & GraphicsManager::GetMainCamera() const
 	return *m_mainCam;
 }
 
+const math::vec2& GraphicsManager::GetVirtualWindowSize() const
+{
+	return m_virtualSize;
+}
+
 void GraphicsManager::SetVirtualWinsize(int width, int height)
 {
+	m_virtualSize = math::vec2(static_cast<float>(width), static_cast<float>(height));
+
 	float half_width = 0.5f * width;
 	float half_height = 0.5f * height;
 	m_mainCam->SetOrtho(half_width, -half_width, -half_height, half_height, -1.f, 1.f);

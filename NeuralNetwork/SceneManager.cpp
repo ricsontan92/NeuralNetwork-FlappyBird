@@ -6,7 +6,8 @@
 
 SceneManager::SceneManager(GraphicsManager& graphicsMgr) :	m_graphicsMgr(graphicsMgr),
 															m_hasInit(false),
-															m_sceneSpd(1)
+															m_sceneSpd(1),
+															m_debugRender(true)
 {
 
 }
@@ -39,7 +40,10 @@ void SceneManager::Update(float dt)
 			m_trainingScene->Update(dt);
 		}
 
-		m_trainingScene->GetPhysicsManager().RenderDebugShapes();
+		m_trainingScene->Render();
+
+		if(m_debugRender)
+			m_trainingScene->GetPhysicsManager().RenderDebugShapes();
 	}
 }
 
@@ -47,6 +51,16 @@ void SceneManager::Unload()
 {
 	m_hasInit = false;
 	m_config  = ScenesConfig();
+}
+
+bool SceneManager::GetDebugRender() const
+{
+	return m_debugRender;
+}
+
+void SceneManager::SetDebugRender(bool set)
+{
+	m_debugRender = set;
 }
 
 unsigned SceneManager::GetSceneSpeed() const

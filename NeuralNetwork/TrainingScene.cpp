@@ -21,7 +21,8 @@ TrainingScene::TrainingScene(GraphicsManager& graphicsMgr, unsigned agentCount) 
 	m_graphicsMgr(graphicsMgr),
 	m_currScore(0),
 	m_maxScore(0),
-	m_currGeneration(0)
+	m_currGeneration(0),
+	m_bgTimer(0.f)
 {
 	m_physicsMgr->GetContactListener().SetBeginContactCallbackFunction(&TrainingScene::ContactEnterCallback, this);
 	m_physicsMgr->GetContactListener().SetEndContactCallbackFunction(&TrainingScene::ContactExitCallback, this);
@@ -34,6 +35,9 @@ TrainingScene::~TrainingScene()
 
 void TrainingScene::Update(float dt)
 {
+	// update bg parallax bg 
+	m_bgTimer += dt * 0.25f;
+	
 	m_physicsMgr->Update(dt);
 
 	if ((m_obstacleSpawnTimer -= dt) <= 0.f)
@@ -63,25 +67,55 @@ void TrainingScene::Update(float dt)
 			}
 		}
 
-		GLRenderer::TextureInfo textureInfo;
-		textureInfo.m_textureName	= "Assets/bird_anim.png";
-		textureInfo.m_cols			= 5;
-		textureInfo.m_rows			= 3;
-		textureInfo.m_currFrame		= bird.m_currFrame;
-		textureInfo.m_tint			= bird.m_birdColor;
-
 		if ((bird.m_animTimer += dt) >= 0.025f)
 		{
 			bird.m_animTimer = 0.f;
 			bird.m_currFrame = (bird.m_currFrame + 1) % 14;
 		}
-
-		m_graphicsMgr.GetRenderer().AddTextureToScene(textureInfo, bird.m_bird->GetPosition(), bird.m_bird->GetSize(), 0.f);
 	}
 
 	if (m_birds.empty())
 	{
 		RestartGame();
+	}
+}
+
+void TrainingScene::Render() const
+{
+	// render background
+	{
+		GLRenderer::TextureInfo textureInfo;
+		textureInfo.m_textureName = "Assets/background.png";
+		textureInfo.m_cols = 1;
+		textureInfo.m_rows = 1;
+		textureInfo.m_currFrame = m_bgTimer;
+		textureInfo.m_tint = math::vec4(1.f, 1.f, 1.f, 1.f);
+		m_graphicsMgr.GetRenderer().AddTextureToScene(textureInfo, math::vec2(), m_graphicsMgr.GetVirtualWindowSize(), 0.f);
+	}
+
+	// render birds
+	for (auto & bird : m_birds)
+	{
+		GLRenderer::TextureInfo textureInfo;
+		textureInfo.m_textureName = "Assets/bird_anim.png";
+		textureInfo.m_cols = 5;
+		textureInfo.m_rows = 3;
+		textureInfo.m_currFrame = static_cast<float>(bird.m_currFrame);
+		textureInfo.m_tint = bird.m_birdColor;
+		m_graphicsMgr.GetRenderer().AddTextureToScene(textureInfo, bird.m_bird->GetPosition(), bird.m_bird->GetSize(), 0.f);
+	}
+
+	// render obstacles
+	for (auto & obstacle : m_obstacles)
+	{
+		GLRenderer::TextureInfo textureInfo;
+		textureInfo.m_textureName = "Assets/pole.png";
+		textureInfo.m_cols = 1;
+		textureInfo.m_rows = 1;
+		textureInfo.m_currFrame = 0;
+		textureInfo.m_tint = math::vec4(1.f, 1.f, 1.f, 1.f);
+
+		m_graphicsMgr.GetRenderer().AddTextureToScene(textureInfo, obstacle->GetPosition(), obstacle->GetSize(), obstacle->GetAngle());
 	}
 }
 
@@ -112,13 +146,15 @@ unsigned TrainingScene::GetLiveBirdCount() const
 
 void TrainingScene::StartGame()
 {
-	PhysicBodyPtr groundA = m_physicsMgr->AddBox(math::vec2(0.f, -350.f), math::vec2(1500.f, 50.f), 0.f, PhysicsManager::BodyType::STATIC);
+	float height = 385.f;
+
+	PhysicBodyPtr groundA = m_physicsMgr->AddBox(math::vec2(0.f, -height), math::vec2(1500.f, 50.f), 0.f, PhysicsManager::BodyType::STATIC);
 	groundA->SetCategoryBits(static_cast<uint16>(ObjectType::GROUND));
 	groundA->SetName("Ground");
 	groundA->SetDebugFill(true);
 	groundA->SetDebugColor(DEBUG_YELLOW);
 
-	PhysicBodyPtr groundB = m_physicsMgr->AddBox(math::vec2(0.f, 350.f), math::vec2(1500.f, 50.f), 0.f, PhysicsManager::BodyType::STATIC);
+	PhysicBodyPtr groundB = m_physicsMgr->AddBox(math::vec2(0.f, height), math::vec2(1500.f, 50.f), 0.f, PhysicsManager::BodyType::STATIC);
 	groundB->SetCategoryBits(static_cast<uint16>(ObjectType::GROUND));
 	groundB->SetName("Ground");
 	groundB->SetDebugFill(true);
@@ -136,8 +172,10 @@ void TrainingScene::RestartGame()
 	// reset variables
 	m_currScore				= 0;
 	m_obstacleSpawnTimer	= 0.f;
+	m_bgTimer				= 0.f;
 
 	// reset physics
+	m_obstacles.clear();
 	m_physicsMgr->Clear();
 	
 	// start game
@@ -172,9 +210,14 @@ void TrainingScene::ContactEnterCallback(const ContactInfo & contactInfo)
 	if ((isAObstacle && isBDestroyer) || (isBObstacle && isADestroyer))
 	{
 		PhysicsBody* body = isAObstacle ? contactInfo.m_bodyA : contactInfo.m_bodyB;
-		body->Destroy();
-		++m_currScore;
-		m_maxScore	= max(m_maxScore, m_currScore);
+		auto it = std::find_if(m_obstacles.begin(), m_obstacles.end(), [&](const PhysicBodyPtr& ptr) { return &(*ptr) == body; });
+		if (it != m_obstacles.end())
+		{
+			body->Destroy();
+			++m_currScore;
+			m_maxScore = max(m_maxScore, m_currScore);
+			m_obstacles.erase(it);
+		}
 	}
 	else if (	(isABird && isBObstacle) || 
 				(isBBird && isAObstacle) ||
@@ -267,7 +310,8 @@ TrainingScene::BirdInfo TrainingScene::SpawnBird(const std::vector<fann_type>& w
 {
 	BirdInfo info;
 
-	info.m_bird = m_physicsMgr->AddBox(math::vec2(-400.f, 0.f), math::vec2(SceneConstants::BirdSize, SceneConstants::BirdSize), 0.f, PhysicsManager::BodyType::DYNAMIC);
+	info.m_bird = m_physicsMgr->AddCircle(math::vec2(-400.f, 0.f), SceneConstants::BirdSize * 0.5f, 0.f, PhysicsManager::BodyType::DYNAMIC);
+
 	info.m_bird->SetName("Bird");
 	info.m_bird->SetIsSensor(true);
 	info.m_bird->SetCategoryBits(static_cast<uint16>(ObjectType::BIRD));
@@ -312,14 +356,13 @@ void TrainingScene::SpawnObstacle()
 	PhysicBodyPtr obstacles[]
 	{
 		m_physicsMgr->AddBox(math::vec2(obstacleSPos, rndHeight - obstacleHalfHt), math::vec2(90.f, obstacleLt), 0.f, PhysicsManager::BodyType::DYNAMIC),	// lower
-		m_physicsMgr->AddBox(math::vec2(obstacleSPos, rndHeight + obstacleHalfHt), math::vec2(90.f, obstacleLt), 0.f, PhysicsManager::BodyType::DYNAMIC)	// upper
+		m_physicsMgr->AddBox(math::vec2(obstacleSPos, rndHeight + obstacleHalfHt), math::vec2(90.f, obstacleLt), 180.f, PhysicsManager::BodyType::DYNAMIC)	// upper
 	};
 
 	// set user data
 	obstacles[0]->SetUserData(&(*obstacles[1]));
 	obstacles[1]->SetUserData(&(*obstacles[0]));
 
-	math::vec2 f;
 	for (auto & obstacle : obstacles)
 	{
 		obstacle->SetName("Obstacle");
@@ -328,10 +371,8 @@ void TrainingScene::SpawnObstacle()
 		obstacle->SetVelocity(math::vec2(-SceneConstants::ObstacleInitialSpeed, 0.f));
 		obstacle->SetIsSensor(true);
 		obstacle->SetGravityScale(0.f);
-		obstacle->SetDebugFill(true);
-		obstacle->SetDebugColor(DEBUG_GREEN);
 
-		f += obstacle->GetPosition();
+		m_obstacles.emplace_back(std::move(obstacle));
 	}
 }
 

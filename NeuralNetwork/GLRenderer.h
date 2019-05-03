@@ -15,9 +15,9 @@ class GLRenderer
 	struct RenderModel
 	{
 		GLImage2D&	m_image;
-		unsigned	m_cols;
-		unsigned	m_rows;
-		unsigned	m_currFrame;
+		float		m_cols;
+		float		m_rows;
+		float		m_currFrame;
 		math::vec4  m_tint;
 		math::mat4	m_model;
 	};
@@ -27,9 +27,9 @@ public:
 	{
 		math::vec4	m_tint;
 		std::string m_textureName;
-		unsigned	m_cols;
-		unsigned	m_rows;
-		unsigned	m_currFrame;
+		float		m_cols;
+		float		m_rows;
+		float		m_currFrame;
 	};
 
 	GLRenderer(GraphicsManager& graphicsMgr);

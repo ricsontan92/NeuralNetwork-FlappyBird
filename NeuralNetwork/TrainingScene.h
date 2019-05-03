@@ -23,6 +23,7 @@ public:
 	TrainingScene(GraphicsManager& graphicsMgr, unsigned agentCount);
 	virtual ~TrainingScene();
 	virtual void Update(float dt);
+	virtual void Render() const;
 
 	PhysicsManager & GetPhysicsManager() const;
 	unsigned GetCurrentScore() const;
@@ -85,6 +86,7 @@ private:
 	void Selection();
 	void Crossover();
 
+	float					m_bgTimer;
 	float					m_obstacleSpawnTimer;
 	std::vector<BirdInfo>	m_birds;
 	unsigned				m_agentCount;
@@ -93,4 +95,5 @@ private:
 	GraphicsManager&		m_graphicsMgr;
 	unsigned				m_currScore, m_maxScore;
 	unsigned				m_currGeneration;
+	std::vector<std::shared_ptr<PhysicsBody>> m_obstacles;
 };

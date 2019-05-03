@@ -138,6 +138,11 @@ float PhysicsBody::GetGravityScale() const
 	return m_body->GetGravityScale();
 }
 
+float PhysicsBody::GetAngle() const
+{
+	return RAD_TO_DEG(m_body->GetAngle());
+}
+
 math::vec2 PhysicsBody::GetPosition() const
 {
 	b2Vec2 pos = m_body->GetPosition();

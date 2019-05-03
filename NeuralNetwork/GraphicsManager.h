@@ -35,6 +35,7 @@ public:
 
 	Camera & GetMainCamera();
 	Camera const & GetMainCamera() const;
+	const math::vec2& GetVirtualWindowSize() const;
 
 	void SetVirtualWinsize(int width, int height);
 	void SetBackgroundColor(const math::vec4 & color);
@@ -51,4 +52,5 @@ private:
 
 	GraphicsBuffers					m_bgBuffer;
 	GLShader						m_bgShader;
+	math::vec2						m_virtualSize;
 };

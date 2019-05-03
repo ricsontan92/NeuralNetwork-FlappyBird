@@ -33,6 +33,7 @@ public:
 	const std::string & GetName() const;
 	float GetFriction() const;
 	float GetGravityScale() const;
+	float GetAngle() const;
 	math::vec2 GetPosition() const;
 	math::vec2 GetSize() const;
 	math::vec2 GetVelocity() const;

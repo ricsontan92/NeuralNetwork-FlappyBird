@@ -22,13 +22,15 @@ public:
 	void Update(float dt);
 
 	void Unload();
-
+	bool GetDebugRender() const;
+	void SetDebugRender(bool set);
 	unsigned GetSceneSpeed() const;
 	std::shared_ptr<TrainingScene> const& GetTrainingScene() const;
 
 	void SetSceneSpeed(unsigned speed);
 
 private:
+	bool										m_debugRender;
 	bool										m_hasInit;
 	ScenesConfig								m_config;
 	GraphicsManager&							m_graphicsMgr;

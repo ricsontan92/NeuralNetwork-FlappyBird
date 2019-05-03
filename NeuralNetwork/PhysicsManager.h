@@ -31,7 +31,7 @@ public:
 	~PhysicsManager();
 	void Update(float dt, int velocityIter = 8, int positionIter = 3);
 
-	PhysicBodyPtr AddCircle(const math::vec2 & pos, float angle, float radius, BodyType bodyType);
+	PhysicBodyPtr AddCircle(const math::vec2 & pos, float radius, float angle, BodyType bodyType);
 	PhysicBodyPtr AddBox(const math::vec2 & pos, const math::vec2& size, float angle, BodyType bodyType);
 	void RenderDebugShapes() const;
 

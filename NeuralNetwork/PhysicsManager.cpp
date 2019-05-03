@@ -126,14 +126,14 @@ void PhysicsManager::CreatePhysicsBody(b2Body* body)
 	body->SetUserData(&(*m_physicsBodies.back()));
 }
 
-PhysicBodyPtr PhysicsManager::AddCircle(const math::vec2 & pos, float angle, float radius, BodyType bodyType)
+PhysicBodyPtr PhysicsManager::AddCircle(const math::vec2 & pos, float radius, float angle, BodyType bodyType)
 {
 	b2CircleShape shape;
 	shape.m_radius	= radius * INV_BOX2D_SCALE_FACTOR;
 
 	b2Body * pBody = CreateBody(pos, DEG_TO_RAD(angle), b2BodyType(bodyType));
 	CreatePhysicsBody(CreateFixture(pBody, shape)->GetBody());
-	m_physicsBodies.back()->m_scale = math::vec2(radius, radius);
+	m_physicsBodies.back()->m_scale = math::vec2(radius, radius) * 2.f;
 	return m_physicsBodies.back();
 }
 

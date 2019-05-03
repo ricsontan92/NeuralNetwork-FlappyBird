@@ -53,13 +53,14 @@ void GLRenderer::RenderTextures()
 
 	for (auto& image : m_models)
 	{
-		float currCol = static_cast<float>(image.m_currFrame % image.m_cols) / static_cast<float>(image.m_cols);
-		float currRow = (image.m_currFrame / image.m_cols) / static_cast<float>(image.m_rows);
+		
+		float currCol = fmodf(image.m_currFrame, image.m_cols) / image.m_cols;
+		float currRow = floorf(image.m_currFrame / image.m_cols) / static_cast<float>(image.m_rows);
 
 		m_renderShader.SetMat44("model", image.m_model);
 		m_renderShader.SetVec4("textTint", image.m_tint);
 		m_renderShader.SetVec2("texcoordoffset", math::vec2(currCol, currRow));
-		m_renderShader.SetVec2("textframecount", math::vec2(static_cast<float>(image.m_cols), static_cast<float>(image.m_rows)));
+		m_renderShader.SetVec2("textframecount", math::vec2(image.m_cols, image.m_rows));
 
 		image.m_image.Bind();
 
