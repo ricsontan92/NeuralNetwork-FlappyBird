@@ -5,6 +5,8 @@
 #include <vector>
 #include <memory>
 
+#include "Randomizer.h"
+
 class ANNTrainer;
 
 class ANNWrapper
@@ -21,33 +23,40 @@ public:
 		unsigned	m_epochsBtwnReports;
 	};
 
+	class Connection
+	{
+	public:
+		unsigned GetFromNeuron() const	{ return m_fromNeuron;	}
+		unsigned GetToNeuron() const	{ return m_toNeuron;	}
+		float GetWeight() const			{ return m_weight;		}
+		void SetWeight(float set)		{ m_weight = set; fann_set_weight(m_ann, m_fromNeuron, m_toNeuron, set); }
+	private:
+		friend class ANNWrapper;
+		struct fann *	m_ann;
+		unsigned		m_fromNeuron;
+		unsigned		m_toNeuron;
+		float			m_weight;
+	};
+
 	ANNWrapper(const ANNConfig& config);
 	~ANNWrapper();
 
+	void RandomizeWeights();
+	void SetWeights(const std::vector<fann_type> & weights);
+	std::vector<Connection> GetConnections();
+	std::vector<fann_type> GetWeights() const;
+
 	std::vector<fann_type> Run(std::vector<fann_type> inputs);
 	template<unsigned N> std::vector<fann_type> Run(const fann_type (&inputs)[N]);
-	void Train();
 
-	void SetTrainer(std::unique_ptr<ANNTrainer>& trainerData);
-	void SetTrainer(std::unique_ptr<ANNTrainer>&& trainerData);
 	template<typename F, typename C> void SetEpochCallback(F fnc, C* fncClass);
-	ANNTrainer& GetTrainer();
-	unsigned GetCurrentEpoch() const;
-	unsigned GetMaxEpoch() const;
-	float GetCurrentMSE() const;
-	float GetDesiredMSE() const;
 
-	struct TrainingData
-	{
-		std::vector<std::vector<fann_type>> m_inputs;
-		std::vector<std::vector<fann_type>> m_outputs;
-		void AddData()
-		{
-			m_inputs.push_back({});
-			m_outputs.push_back({});
-		}
-	};
-	void TrainFromData(TrainingData * trainingData);
+	unsigned	GetCurrentEpoch() const;
+	unsigned	GetMaxEpoch() const;
+	float		GetCurrentMSE() const;
+	float		GetDesiredMSE() const;
+
+	void		Dump() const;
 
 private:
 	struct Concept
@@ -72,22 +81,12 @@ private:
 										unsigned int epochs_between_reports,
 										float desired_error, unsigned int epochs);
 private:
-	using InputVec	= std::vector<fann_type>;
-	using OutputVec = std::vector<fann_type>;
-	using DataPair	= std::pair<InputVec, OutputVec>;
-
-	void PreprocessData(std::vector<std::vector<fann_type>>& inputs, std::vector<std::vector<fann_type>>& outputs) const;
-	void RemoveSimilarData(std::vector<std::pair<InputVec, OutputVec>>& sortedData) const;
-	void ShuffleData(std::vector<std::pair<InputVec, OutputVec>>& sortedData) const;
-
-	friend class ANNTrainer;
 	struct fann *				m_ann;
 	ANNConfig					m_config;
-	std::unique_ptr<ANNTrainer> m_annTrainer;
 	std::unique_ptr<Concept>	m_epochCallback;
-
 	float						m_mse;
 	unsigned					m_currEpoch;
+	Randomizer					m_randomizer;
 };
 
 template<unsigned N>

@@ -1496,7 +1496,7 @@ FANN_EXTERNAL void FANN_API fann_get_weights(struct fann *ann, fann_type *weight
 	memcpy(weights, ann->weights, sizeof(fann_type)*ann->total_connections);
 }
 
-FANN_EXTERNAL void FANN_API fann_set_weights(struct fann *ann, fann_type *weights)
+FANN_EXTERNAL void FANN_API fann_set_weights(struct fann *ann, const fann_type *weights)
 {
 	memcpy(ann->weights, weights, sizeof(fann_type)*ann->total_connections);
 }

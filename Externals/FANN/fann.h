@@ -555,7 +555,7 @@ FANN_EXTERNAL void FANN_API fann_get_weights(struct fann *ann, fann_type *weight
 
    This function appears in FANN >= x.y.z
 */
-FANN_EXTERNAL void FANN_API fann_set_weights(struct fann *ann, fann_type *weights);
+FANN_EXTERNAL void FANN_API fann_set_weights(struct fann *ann, const fann_type *weights);
 
 
 /* Function: fann_set_user_data

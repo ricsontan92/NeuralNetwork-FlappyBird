@@ -126,7 +126,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="ANNTrainer.cpp" />
     <ClCompile Include="ANNWrapper.cpp" />
     <ClCompile Include="AppWindow.cpp" />
     <ClCompile Include="Camera.cpp" />
@@ -134,7 +133,6 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="GameScene.cpp" />
     <ClCompile Include="GLImage2D.cpp" />
     <ClCompile Include="GLRenderer.cpp" />
     <ClCompile Include="GLShader.cpp" />
@@ -171,7 +169,6 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ANNTrainer.h" />
     <ClInclude Include="ANNWrapper.h" />
     <ClInclude Include="AppWindow.h" />
     <ClInclude Include="Camera.h" />
@@ -179,7 +176,6 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
     </ClInclude>
-    <ClInclude Include="GameScene.h" />
     <ClInclude Include="GLImage2D.h" />
     <ClInclude Include="GLRenderer.h" />
     <ClInclude Include="GLShader.h" />
@@ -195,7 +191,6 @@
     <ClInclude Include="ImGui\imstb_rectpack.h" />
     <ClInclude Include="ImGui\imstb_textedit.h" />
     <ClInclude Include="ImGui\imstb_truetype.h" />
-    <ClInclude Include="JumpData.h" />
     <ClInclude Include="mat4.h" />
     <ClInclude Include="math.h" />
     <ClInclude Include="PhysicsBody.h" />

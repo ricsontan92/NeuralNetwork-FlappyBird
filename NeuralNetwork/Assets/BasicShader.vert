@@ -14,6 +14,5 @@ uniform vec2 textframecount;
 void main()
 {
   gl_Position = projView * model * vec4(aPos.xyz, 1);
-  //TexCoords   = aTexCoords / textframecount + texcoordoffset;
-  TexCoords = aTexCoords;
+  TexCoords   = aTexCoords / textframecount + texcoordoffset;
 }

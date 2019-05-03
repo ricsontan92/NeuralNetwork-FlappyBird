@@ -33,11 +33,11 @@ public:
 
 	PhysicBodyPtr AddCircle(const math::vec2 & pos, float angle, float radius, BodyType bodyType);
 	PhysicBodyPtr AddBox(const math::vec2 & pos, const math::vec2& size, float angle, BodyType bodyType);
-
 	void RenderDebugShapes() const;
 
 	PhysicsContactListener& GetContactListener();
 	const PhysicsContactListener& GetContactListener() const;
+	const std::vector<PhysicBodyPtr>& GetAllBodies() const;
 
 	void Clear();
 
@@ -52,7 +52,6 @@ private:
 	std::unique_ptr<PhysicsContactListener> m_listener;
 	DebugDrawer&				m_debugDrawer;
 
-	std::vector<b2Body*>						m_allBodies;
 	std::vector<std::shared_ptr<PhysicsBody>>	m_physicsBodies;
 	mutable std::mutex							m_physicsBodiesMtx;
 };

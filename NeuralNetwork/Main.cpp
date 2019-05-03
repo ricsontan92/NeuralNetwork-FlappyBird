@@ -1,7 +1,5 @@
 #include "Camera.h"
 #include "AppWindow.h"
-#include "GameScene.h"
-#include "ANNTrainer.h"
 #include "GUIManager.h"
 #include "GLRenderer.h"
 #include "DebugDrawer.h"

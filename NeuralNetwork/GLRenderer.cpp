@@ -18,24 +18,24 @@ GLRenderer::~GLRenderer()
 
 }
 
-void GLRenderer::AddTextureToScene(const std::string & texturePath, const math::mat4 & model)
+void GLRenderer::AddTextureToScene(const TextureInfo & textureInfo, const math::mat4 & model)
 {
-	std::unique_ptr<GLImage2D>& pTexture = m_textureCache[texturePath];
+	std::unique_ptr<GLImage2D>& pTexture = m_textureCache[textureInfo.m_textureName];
 
 	if (pTexture == nullptr)
 	{
 		pTexture = std::make_unique<GLImage2D>();
-		if (!pTexture->LoadTexture(texturePath))
+		if (!pTexture->LoadTexture(textureInfo.m_textureName))
 		{
 			return;
 		}
 	}
 
-	RenderModel renderModel{ *pTexture ,model };
+	RenderModel renderModel{ *pTexture ,textureInfo.m_cols, textureInfo.m_rows, textureInfo.m_currFrame, textureInfo.m_tint, model };
 	m_models.emplace_back(std::move(renderModel));
 }
 
-void GLRenderer::AddTextureToScene(const std::string & textureName, const math::vec3 & position, const math::vec3& scale, float degrees)
+void GLRenderer::AddTextureToScene(const TextureInfo & textureName, const math::vec3 & position, const math::vec3& scale, float degrees)
 {
 	math::mat4 transform =	math::mat4::Translate(position) *
 							math::mat4::Rotate2D(degrees) *
@@ -53,9 +53,15 @@ void GLRenderer::RenderTextures()
 
 	for (auto& image : m_models)
 	{
-		m_renderShader.SetMat44("model", image.model);
+		float currCol = static_cast<float>(image.m_currFrame % image.m_cols) / static_cast<float>(image.m_cols);
+		float currRow = (image.m_currFrame / image.m_cols) / static_cast<float>(image.m_rows);
 
-		image.image.Bind();
+		m_renderShader.SetMat44("model", image.m_model);
+		m_renderShader.SetVec4("textTint", image.m_tint);
+		m_renderShader.SetVec2("texcoordoffset", math::vec2(currCol, currRow));
+		m_renderShader.SetVec2("textframecount", math::vec2(static_cast<float>(image.m_cols), static_cast<float>(image.m_rows)));
+
+		image.m_image.Bind();
 
 		glBindVertexArray(m_quadBuffer.m_VAO);
 

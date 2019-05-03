@@ -63,9 +63,6 @@
     <ClCompile Include="Camera.cpp">
       <Filter>Core\Graphics</Filter>
     </ClCompile>
-    <ClCompile Include="GameScene.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="PhysicsBody.cpp">
       <Filter>Core\Physics</Filter>
     </ClCompile>
@@ -92,9 +89,6 @@
     </ClCompile>
     <ClCompile Include="ImGui\imgui_widgets.cpp">
       <Filter>Core\GUI</Filter>
-    </ClCompile>
-    <ClCompile Include="ANNTrainer.cpp">
-      <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="GUIManager.cpp">
       <Filter>Source Files</Filter>
@@ -152,9 +146,6 @@
     <ClInclude Include="Camera.h">
       <Filter>Core\Graphics</Filter>
     </ClInclude>
-    <ClInclude Include="GameScene.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="PhysicsBody.h">
       <Filter>Core\Physics</Filter>
     </ClInclude>
@@ -191,9 +182,6 @@
     <ClInclude Include="ImGui\imstb_truetype.h">
       <Filter>Core\GUI</Filter>
     </ClInclude>
-    <ClInclude Include="ANNTrainer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="GUIManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -201,9 +189,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="TrainingScene.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="JumpData.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SceneManager.h">

@@ -1,23 +1,18 @@
 #include "SceneManager.h"
 
+#include "GraphicsManager.h"
 #include "PhysicsManager.h"
 #include "TrainingScene.h"
-#include "ANNTrainer.h"
-#include "GameScene.h"
 
 SceneManager::SceneManager(GraphicsManager& graphicsMgr) :	m_graphicsMgr(graphicsMgr),
 															m_hasInit(false),
-															m_renderSceneIdx(-1)
+															m_sceneSpd(1)
 {
 
 }
 
 SceneManager::~SceneManager()
 {
-	for (auto & scene : m_trainingScenes)
-		scene->StopScene();
-	for (auto & trainer : m_trainers)
-		trainer.wait();	
 }
 
 void SceneManager::Init(const ScenesConfig& config)
@@ -25,14 +20,7 @@ void SceneManager::Init(const ScenesConfig& config)
 	m_config = config;
 
 	// training scenes
-	unsigned sceneCount = m_config.m_threaded ? max(1, std::thread::hardware_concurrency() - 1) : 1;
-	unsigned perScene	= config.m_samplesCount / sceneCount;
-	for (unsigned i = 1; i <= sceneCount; ++i)
-	{
-		unsigned remainder = i == sceneCount ? (config.m_samplesCount % sceneCount) : 0;
-		m_trainingScenes.emplace_back(std::make_shared<TrainingScene>(m_graphicsMgr, perScene + remainder));
-		m_trainers.emplace_back(std::async(&SceneManager::SetupTrainingScene, this, std::ref(*m_trainingScenes.back())));
-	}
+	m_trainingScene = std::make_shared<TrainingScene>(m_graphicsMgr, m_config.m_agentCount);
 
 	m_hasInit = true;
 }
@@ -44,78 +32,34 @@ void SceneManager::Update(float dt)
 		return;
 	}
 
-	if (m_gameScene)
+	if (m_trainingScene)
 	{
-		m_gameScene->Update(dt);
-	}
-	else
-	{
-		if(m_renderSceneIdx >= 0 && static_cast<size_t>(m_renderSceneIdx) < m_trainingScenes.size())
-			m_trainingScenes[m_renderSceneIdx]->GetPhysicsManager().RenderDebugShapes();
-
-		// check if training is completed
-		if (IsAllTrainingCompleted())
+		for (unsigned i = 0; i < m_sceneSpd; ++i)
 		{
-			ANNTrainer combinedTrainer;
-			for (auto & trainer : m_trainers)
-			{
-				trainer.wait();
-				combinedTrainer += trainer.get();
-			}
-			m_trainers.clear();
-			m_gameScene = std::make_unique<GameScene>(m_graphicsMgr, combinedTrainer);
-			m_trainingScenes.clear();
+			m_trainingScene->Update(dt);
 		}
+
+		m_trainingScene->GetPhysicsManager().RenderDebugShapes();
 	}
-}
-
-const std::vector<std::shared_ptr<TrainingScene>> & SceneManager::GetTrainingScenes() const
-{
-	return m_trainingScenes;
-}
-
-const std::unique_ptr<GameScene> & SceneManager::GetGameScene() const
-{
-	return m_gameScene;
-}
-
-int SceneManager::GetRenderingSceneIdx() const
-{
-	return m_renderSceneIdx;
-}
-
-void SceneManager::SetRenderingSceneIdx(int id)
-{
-	m_renderSceneIdx = id;
 }
 
 void SceneManager::Unload()
 {
 	m_hasInit = false;
-	m_renderSceneIdx = -1;
-	m_config = ScenesConfig();
-	m_gameScene.reset();
-	m_trainers.clear();
-	m_trainingScenes.clear();
+	m_config  = ScenesConfig();
 }
 
-bool SceneManager::IsAllTrainingCompleted() const
+unsigned SceneManager::GetSceneSpeed() const
 {
-	for (auto & scene : m_trainingScenes)
-	{
-		if (scene->IsTraining())
-		{
-			return false;
-		}
-	}
-	return true;
+	return m_sceneSpd;
 }
 
-ANNTrainer SceneManager::SetupTrainingScene(TrainingScene& scene)
+std::shared_ptr<TrainingScene> const& SceneManager::GetTrainingScene() const
 {
-	while (scene.IsRunning() && scene.IsTraining())
-	{
-		scene.Update(m_config.m_discreteDT);
-	}
-	return scene.GetANNTrainer();
+	return m_trainingScene;
+}
+
+void SceneManager::SetSceneSpeed(unsigned speed)
+{
+	m_sceneSpd = min(max(speed, 1), 1 << 10);
 }

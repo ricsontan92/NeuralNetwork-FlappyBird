@@ -1,7 +1,5 @@
 #include "ANNWrapper.h"
 
-#include "ANNTrainer.h"
-
 #include <vector>
 #include <cassert>
 #include <iostream>
@@ -9,15 +7,19 @@
 
 ANNWrapper::ANNWrapper(const ANNConfig& config) : 
 	m_config(config),
-	m_annTrainer(std::make_unique<ANNTrainer>()),
 	m_currEpoch(0),
-	m_mse(0.f)
+	m_mse(0.f),
+	m_randomizer(-1.f, 1.f)
 {
 	std::vector<unsigned> layers(m_config.m_numLayers, 0);
-	layers.front() = m_config.m_numInputs;
-	layers.back() = m_config.m_numOutputs;
+	
+	layers.front()	= m_config.m_numInputs;
+	layers.back()	= m_config.m_numOutputs;
+
 	for (size_t i = 1; i < (layers.size() - 1); ++i)
+	{
 		layers[i] = m_config.m_numNeuronsInHidden;
+	}
 
 	m_ann = fann_create_standard_array(m_config.m_numLayers, &layers[0]);
 
@@ -33,71 +35,53 @@ ANNWrapper::~ANNWrapper()
 	fann_destroy(m_ann);
 }
 
-std::vector<fann_type> ANNWrapper::Run(std::vector<fann_type> inputs)
+void ANNWrapper::RandomizeWeights()
 {
-	std::vector<fann_type> result;
-	inputs = m_annTrainer->NormalizeInput(inputs);
-	fann_type * output = fann_run(m_ann, &inputs[0]);
-	for (int i = 0; i < m_config.m_numOutputs; ++i)
-		result.push_back(output[i]);
+	unsigned totalConnections = fann_get_total_connections(m_ann);
+	std::vector<fann_type> vWeights(totalConnections);
+	for (auto & w : vWeights)
+		w = m_randomizer.GetRandomFloat();
+	fann_set_weights(m_ann, &vWeights[0]);
+}
+
+void ANNWrapper::SetWeights(const std::vector<fann_type> & weights)
+{
+	assert(fann_get_total_connections(m_ann) == weights.size());
+	fann_set_weights(m_ann, &weights[0]);
+}
+
+std::vector<fann_type> ANNWrapper::GetWeights() const
+{
+	unsigned totalConnections = fann_get_total_connections(m_ann);
+	std::vector<fann_type> vWeights(totalConnections);
+	fann_get_weights(m_ann, &vWeights[0]);
+	return vWeights;
+}
+
+std::vector<ANNWrapper::Connection> ANNWrapper::GetConnections()
+{
+	std::vector<fann_connection> connections(fann_get_total_connections(m_ann));
+	fann_get_connection_array(m_ann, &connections[0]);
+
+	std::vector<ANNWrapper::Connection> result;
+	result.reserve(connections.size());
+	for (auto & elem : connections)
+	{
+		ANNWrapper::Connection con;
+		con.m_fromNeuron	= elem.from_neuron;
+		con.m_toNeuron		= elem.to_neuron;
+		con.m_weight		= elem.weight;
+		con.m_ann			= m_ann;
+		result.emplace_back(con);
+	}
 	return result;
 }
 
-void ANNWrapper::Train()
+std::vector<fann_type> ANNWrapper::Run(std::vector<fann_type> inputs)
 {
-	auto allOutputs = m_annTrainer->GetAllOutputs();
-	auto allInputs	= m_annTrainer->GetAllInputs();
-
-	PreprocessData(allInputs, allOutputs);
-
-	int failures	= 0, successes = 0;
-
-	std::vector<std::vector<fann_type>> successIns, successOuts;
-	std::vector<std::vector<fann_type>> failureIns, failureOuts;
-
-	for (unsigned i = 0; i < allInputs.size(); ++i)
-	{
-		if (allOutputs[i][0] == -1.f)
-		{
-			failures++;
-			failureIns.push_back(allInputs[i]);
-			failureOuts.push_back(allOutputs[i]);
-		}
-		else
-		{
-			successIns.push_back(allInputs[i]);
-			successOuts.push_back(allOutputs[i]);
-			successes++;
-		}
-	}
-
-	std::cout << "Total Samples(Before Preprocessing): " << m_annTrainer->GetDataCount() << std::endl;
-	std::cout << "Total Samples(After Preprocessing): " << allInputs.size() << std::endl;
-	std::cout << "Failures: "	<< failures << std::endl;
-	std::cout << "Successes: "	<< successes << std::endl;
-
-	TrainingData data;
-	data.m_inputs = std::move(allInputs);
-	data.m_outputs = std::move(allOutputs);
-
-	TrainFromData(&data);
-
-	m_annTrainer->Clear();
-}
-
-void ANNWrapper::SetTrainer(std::unique_ptr<ANNTrainer>& trainerData)
-{
-	m_annTrainer = std::move(trainerData);
-}
-
-void ANNWrapper::SetTrainer(std::unique_ptr<ANNTrainer>&& trainerData)
-{
-	m_annTrainer = std::move(trainerData);
-}
-
-ANNTrainer& ANNWrapper::GetTrainer()
-{
-	return *m_annTrainer;
+	fann_type * output = fann_run(m_ann, &inputs[0]);
+	std::vector<fann_type> result(output, output + m_config.m_numOutputs);
+	return result;
 }
 
 unsigned ANNWrapper::GetCurrentEpoch() const
@@ -120,32 +104,20 @@ float ANNWrapper::GetDesiredMSE() const
 	return m_config.m_maxErr;
 }
 
-void ANNWrapper::TrainFromData(TrainingData * trainingData)
+void ANNWrapper::Dump() const
 {
-	if (trainingData == nullptr)
+	unsigned totalConnections = fann_get_total_connections(m_ann);
+	if (totalConnections > 0)
 	{
-		return;
+		std::vector< fann_connection> vConnections(totalConnections);
+
+		fann_get_connection_array(m_ann, &vConnections[0]);
+
+		for (fann_connection const & connection : vConnections)
+		{
+			std::cout << "from neuron " << connection.from_neuron << " to neuron " << connection.to_neuron << ": " << connection.weight << std::endl;
+		}
 	}
-
-	assert(trainingData->m_inputs.size() == trainingData->m_outputs.size());
-	
-	std::vector<fann_type*>	forInput(trainingData->m_inputs.size(), nullptr),
-							forOutput(trainingData->m_outputs.size(), nullptr);
-
-	for (unsigned i = 0; i < trainingData->m_inputs.size(); ++i)
-	{
-		forInput[i]		= &(trainingData->m_inputs[i])[0];
-		forOutput[i]	= &(trainingData->m_outputs[i])[0];
-	}
-
-	fann_train_data data;
-	data.input			= &forInput[0];
-	data.output			= &forOutput[0];
-	data.num_data		= trainingData->m_outputs.size();
-	data.num_input		= m_config.m_numInputs;
-	data.num_output		= m_config.m_numOutputs;
-
-	fann_train_on_data(m_ann, &data, m_config.m_maxEpochs, 1, m_config.m_maxErr);
 }
 
 int FANN_API ANNWrapper::MyANNCallback(	struct fann *ann, struct fann_train_data *train,
@@ -171,72 +143,4 @@ int FANN_API ANNWrapper::MyANNCallback(	struct fann *ann, struct fann_train_data
 	annWrapper->m_mse = mse;
 
 	return isRunning ? 0 : -1;
-}
-
-void ANNWrapper::PreprocessData(std::vector<std::vector<fann_type>>& inputs, std::vector<std::vector<fann_type>>& outputs) const
-{
-	std::cout << "Preprocessing data..." << std::endl;
-
-	// remove similar data
-	std::vector<std::pair<InputVec, OutputVec>> vData(inputs.size(), std::make_pair<InputVec, OutputVec>({}, {}));
-	
-	for (unsigned i = 0; i < inputs.size(); ++i)
-	{
-		vData[i].first	= std::move(inputs[i]);
-		vData[i].second = std::move(outputs[i]);
-	}
-
-	std::sort(vData.begin(), vData.end(), [](const DataPair& l, const DataPair& r) 
-	{
-		for (unsigned i = 0; i < l.first.size(); ++i)
-		{
-			if (l.first[i] < r.first[i])
-				return true;
-			else if (l.first[i] > r.first[i])
-				return false;
-		}
-		return false;
-	});
-
-	// preprocessing starts here
-	RemoveSimilarData(vData);
-
-	inputs.clear();
-	outputs.clear();
-
-	ShuffleData(vData);
-	for (auto & data : vData)
-	{
-		inputs.emplace_back(std::move(data.first));
-		outputs.emplace_back(std::move(data.second));
-	}
-}
-
-void ANNWrapper::RemoveSimilarData(std::vector<std::pair<InputVec, OutputVec>>& sortedData) const
-{
-	std::cout << "\t* Remove Similar Data..." << std::endl;
-
-	for (auto it = sortedData.begin() + 1; it != sortedData.end();)
-	{
-		InputVec & prev = (it - 1)->first;
-		InputVec & curr = (it - 0)->first;
-
-		float totalDiff = 0.f;
-
-		for (unsigned k = 0; k < curr.size(); ++k)
-		{
-			float diff = (curr[k] - prev[k]);
-			totalDiff += diff * diff;
-		}
-
-		if (totalDiff <= 0.001f)
-			it = sortedData.erase(it);
-		else
-			it++;
-	}
-}
-
-void ANNWrapper::ShuffleData(std::vector<std::pair<InputVec, OutputVec>>& sortedData) const
-{
-	std::random_shuffle(sortedData.begin(), sortedData.end());
 }

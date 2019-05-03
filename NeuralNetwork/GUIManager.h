@@ -18,7 +18,6 @@ private:
 	void RenderOverlay(float alpha);
 
 	void RenderGameInfo();
-	void RenderHistogram();
 	void RenderGameConfig();
 
 	SceneManager::ScenesConfig m_scenConfig;

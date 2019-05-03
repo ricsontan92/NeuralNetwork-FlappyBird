@@ -88,8 +88,12 @@ void DebugDrawer::AddDebugFilledCircle(const math::vec3& worldpos, float radius,
 {
 	math::mat4 translate = math::mat4::Translate(worldpos);
 	math::mat4 scale = math::mat4::Scale(radius);
+	AddDebugFilledCircle(translate * scale, color);
+}
 
-	DebugModel debugModel{ m_circleBuffer.m_VAO , translate * scale, color, GL_TRIANGLE_FAN, 32 };
+void DebugDrawer::AddDebugFilledCircle(const math::mat4& model, const math::vec4& color)
+{
+	DebugModel debugModel{ m_circleBuffer.m_VAO , model, color, GL_TRIANGLE_FAN, 32 };
 	m_models.push_back(debugModel);
 }
 

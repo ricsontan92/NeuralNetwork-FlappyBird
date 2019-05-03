@@ -7,7 +7,7 @@
 #include "GL\glew.h"
 #include "GLFW\glfw3.h"
 
-static const char * TITLE = "Neural Network(Jump Game)";
+static const char * TITLE = "Neural Network(Flappy Bird)";
 
 void AppWindow::WindowSizeChangeCallback(GLFWwindow* window, int newWt, int newHt)
 {
@@ -55,8 +55,6 @@ bool AppWindow::Init(unsigned winWd, unsigned winHt)
 
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	glEnable(GL_DEPTH_TEST);
 
 	glfwSetWindowSizeCallback(m_window, WindowSizeChangeCallback);
 

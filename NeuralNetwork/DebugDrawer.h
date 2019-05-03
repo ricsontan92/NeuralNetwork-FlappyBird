@@ -37,6 +37,7 @@ public:
 
 	void AddFilledDebugBox(const math::mat4& model, const math::vec4& color);
 	void AddDebugFilledCircle(const math::vec3& worldpos, float radius, const math::vec4& color);
+	void AddDebugFilledCircle(const math::mat4& model, const math::vec4& color);
 
 private:
 	GLShader m_debugShader;

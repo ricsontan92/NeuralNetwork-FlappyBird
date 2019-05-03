@@ -50,7 +50,10 @@ void PhysicsManager::RenderDebugShapes() const
 				math::mat4 transform =	math::mat4::Translate(math::vec3(pos.x, pos.y, 0.f)) *
 										math::mat4::Rotate2D(radians) *
 										math::mat4::Scale(radius);
-				m_debugDrawer.AddDebugCircle(transform, DEBUG_RED);
+				if(physicBody->GetDebugFill())
+					m_debugDrawer.AddDebugFilledCircle(transform, physicBody->m_debugColor);
+				else
+					m_debugDrawer.AddDebugCircle(transform, physicBody->m_debugColor);
 			}
 			case b2Shape::e_polygon:
 			{
@@ -59,7 +62,11 @@ void PhysicsManager::RenderDebugShapes() const
 				math::mat4 transform =	math::mat4::Translate(math::vec3(pos.x, pos.y, 0.f)) *
 										math::mat4::Rotate2D(radians) *
 										math::mat4::Scale(math::vec3(fabs(dim.x), fabs(dim.y), 0.f));
-				m_debugDrawer.AddDebugBox(transform, DEBUG_RED);
+
+				if (physicBody->GetDebugFill())
+					m_debugDrawer.AddFilledDebugBox(transform, physicBody->m_debugColor);
+				else
+					m_debugDrawer.AddDebugBox(transform, physicBody->m_debugColor);
 			}
 			case b2Shape::e_chain:
 			case b2Shape::e_edge:
@@ -124,8 +131,9 @@ PhysicBodyPtr PhysicsManager::AddCircle(const math::vec2 & pos, float angle, flo
 	b2CircleShape shape;
 	shape.m_radius	= radius * INV_BOX2D_SCALE_FACTOR;
 
-	m_allBodies.push_back(CreateBody(pos, DEG_TO_RAD(angle), b2BodyType(bodyType)));
-	CreatePhysicsBody(CreateFixture(m_allBodies.back(), shape)->GetBody());
+	b2Body * pBody = CreateBody(pos, DEG_TO_RAD(angle), b2BodyType(bodyType));
+	CreatePhysicsBody(CreateFixture(pBody, shape)->GetBody());
+	m_physicsBodies.back()->m_scale = math::vec2(radius, radius);
 	return m_physicsBodies.back();
 }
 
@@ -134,8 +142,9 @@ PhysicBodyPtr PhysicsManager::AddBox(const math::vec2 & pos, const math::vec2& s
 	b2PolygonShape shape;
 	shape.SetAsBox(size.x * INV_BOX2D_SCALE_FACTOR * 0.5f, size.y * INV_BOX2D_SCALE_FACTOR * 0.5f);
 
-	m_allBodies.push_back(CreateBody(pos, DEG_TO_RAD(angle), b2BodyType(bodyType)));
-	CreatePhysicsBody(CreateFixture(m_allBodies.back(), shape)->GetBody());
+	b2Body * pBody = CreateBody(pos, DEG_TO_RAD(angle), b2BodyType(bodyType));
+	CreatePhysicsBody(CreateFixture(pBody, shape)->GetBody());
+	m_physicsBodies.back()->m_scale = size;
 	return m_physicsBodies.back();
 }
 
@@ -147,6 +156,12 @@ PhysicsContactListener& PhysicsManager::GetContactListener()
 const PhysicsContactListener& PhysicsManager::GetContactListener() const
 {
 	return *m_listener;
+}
+
+const std::vector<PhysicBodyPtr>& PhysicsManager::GetAllBodies() const
+{
+	std::lock_guard<std::mutex> lck(m_physicsBodiesMtx);
+	return m_physicsBodies;
 }
 
 void PhysicsManager::Clear()

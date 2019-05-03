@@ -1,8 +1,8 @@
 #include "TrainingScene.h"
 
-#include "JumpData.h"
-#include "ANNTrainer.h"
 #include "ANNWrapper.h"
+#include "GLRenderer.h"
+#include "DebugDrawer.h"
 #include "PhysicsBody.h"
 #include "PhysicsManager.h"
 #include "SceneConstants.h"
@@ -12,70 +12,77 @@
 #include <ctime>
 #include <iostream>
 
-TrainingScene::TrainingScene(GraphicsManager& graphicsMgr, unsigned maxTrainingCount) :
+TrainingScene::TrainingScene(GraphicsManager& graphicsMgr, unsigned agentCount) :
 	m_physicsMgr(std::make_unique<PhysicsManager>(math::vec2(0.f, -9.8f), graphicsMgr.GetDebugDrawer())),
 	m_gameRestarting(false),
-	m_isPlayerOnGround(false),
-	m_randomizer(0.f, 2.0f),
-	m_bulletSpdRandomizer(BULLET_MIN_SPEED, BULLET_MAX_SPEED),
-	m_maxTrainingCount(maxTrainingCount),
-	m_normalSpd(false),
-	m_isRunning(true)
+	m_agentCount(agentCount),
+	m_randomizer(-1.f, 1.f),
+	m_obstacleSpawnTimer(0.f),
+	m_graphicsMgr(graphicsMgr),
+	m_currScore(0),
+	m_maxScore(0),
+	m_currGeneration(0)
 {
 	m_physicsMgr->GetContactListener().SetBeginContactCallbackFunction(&TrainingScene::ContactEnterCallback, this);
 	m_physicsMgr->GetContactListener().SetEndContactCallbackFunction(&TrainingScene::ContactExitCallback, this);
-
-	m_annTrainer = std::make_unique<ANNTrainer>();
-
-	StartGame();
 }
 
 TrainingScene::~TrainingScene()
 {
 	m_physicsMgr->GetContactListener().ClearListenerFunctions();
-	EndGame();
 }
 
 void TrainingScene::Update(float dt)
 {
-	auto time_start = std::chrono::high_resolution_clock::now();
+	m_physicsMgr->Update(dt);
 
-	if (m_gameRestarting)
+	if ((m_obstacleSpawnTimer -= dt) <= 0.f)
 	{
-		EndGame();
-		StartGame();
-	}
-	else
-	{
-		UpdateMainEntity(dt);
-		UpdateBulletEntity(dt);
-		m_physicsMgr->Update(dt);
+		SpawnObstacle();
+		m_obstacleSpawnTimer = SceneConstants::ObstacleSpawnTime;
 	}
 
-	if (m_normalSpd)
+	for (auto & bird : m_birds)
 	{
-		double currDt;
-		do
+		PhysicBodyPtr nearestObj = GetNearestObstacle();
+		PhysicBodyPtr secNearestObj = GetSecondNearestObstacle();
+		float computeMid = 0.5f * (reinterpret_cast<PhysicsBody*>(nearestObj->GetUserData())->GetPosition().y + nearestObj->GetPosition().y);
+		float computeMid2 = secNearestObj ? 0.5f * (reinterpret_cast<PhysicsBody*>(secNearestObj->GetUserData())->GetPosition().y + secNearestObj->GetPosition().y) : 0.f;
+		if ((bird.m_delay -= dt) <= 0.f)
 		{
-			std::this_thread::sleep_for(std::chrono::duration<double, std::nano>(1));
-			currDt = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::high_resolution_clock::now() - time_start).count();
-		} while (currDt < dt);
+			float input[static_cast<unsigned>(InputType::COUNT)];
+			input[static_cast<unsigned>(InputType::DIST_FROM_OBSTACLE)]					= nearestObj->GetPosition().x - bird.m_bird->GetPosition().x;
+			input[static_cast<unsigned>(InputType::HEIGHT_FROM_NEAREST_HOLE)]			= computeMid - bird.m_bird->GetPosition().y;
+			input[static_cast<unsigned>(InputType::HEIGHT_FROM_SECOND_NEAREST_HOLE)]	= computeMid2 - bird.m_bird->GetPosition().y;
+			input[static_cast<unsigned>(InputType::VERTICAL_SPEED)]						= bird.m_bird->GetVelocity().y;
+
+			if (bird.m_ann->Run(input)[0] >= 0.f)
+			{
+				bird.m_bird->AddForceToCenter(math::vec2(0.f, SceneConstants::FlapStrength));
+				bird.m_delay = SceneConstants::FlapDelay;
+			}
+		}
+
+		GLRenderer::TextureInfo textureInfo;
+		textureInfo.m_textureName	= "Assets/bird_anim.png";
+		textureInfo.m_cols			= 5;
+		textureInfo.m_rows			= 3;
+		textureInfo.m_currFrame		= bird.m_currFrame;
+		textureInfo.m_tint			= bird.m_birdColor;
+
+		if ((bird.m_animTimer += dt) >= 0.025f)
+		{
+			bird.m_animTimer = 0.f;
+			bird.m_currFrame = (bird.m_currFrame + 1) % 14;
+		}
+
+		m_graphicsMgr.GetRenderer().AddTextureToScene(textureInfo, bird.m_bird->GetPosition(), bird.m_bird->GetSize(), 0.f);
 	}
-}
 
-ANNTrainer& TrainingScene::GetANNTrainer() const
-{
-	return *m_annTrainer;
-}
-
-bool TrainingScene::IsTraining() const
-{
-	return m_isRunning && m_annTrainer->GetDataCount() < m_maxTrainingCount;
-}
-
-bool TrainingScene::IsRunning() const
-{
-	return m_isRunning;
+	if (m_birds.empty())
+	{
+		RestartGame();
+	}
 }
 
 PhysicsManager & TrainingScene::GetPhysicsManager() const
@@ -83,148 +90,301 @@ PhysicsManager & TrainingScene::GetPhysicsManager() const
 	return *m_physicsMgr;
 }
 
-void TrainingScene::SetNormalSpeed(bool set)
+unsigned TrainingScene::GetCurrentScore() const
 {
-	m_normalSpd = set;
+	return m_currScore >> 1;
 }
 
-bool TrainingScene::GetNormalSpeed() const
+unsigned TrainingScene::GetMaxScore() const
 {
-	return m_normalSpd;
+	return m_maxScore >> 1;
 }
 
-void TrainingScene::StopScene()
+unsigned TrainingScene::GetCurrentGeneration() const
 {
-	m_isRunning = false;
+	return m_currGeneration;
 }
 
-void TrainingScene::UpdateMainEntity(float dt)
+unsigned TrainingScene::GetLiveBirdCount() const
 {
-	if (!m_isPlayerOnGround)
+	return m_birds.size();
+}
+
+void TrainingScene::StartGame()
+{
+	PhysicBodyPtr groundA = m_physicsMgr->AddBox(math::vec2(0.f, -350.f), math::vec2(1500.f, 50.f), 0.f, PhysicsManager::BodyType::STATIC);
+	groundA->SetCategoryBits(static_cast<uint16>(ObjectType::GROUND));
+	groundA->SetName("Ground");
+	groundA->SetDebugFill(true);
+	groundA->SetDebugColor(DEBUG_YELLOW);
+
+	PhysicBodyPtr groundB = m_physicsMgr->AddBox(math::vec2(0.f, 350.f), math::vec2(1500.f, 50.f), 0.f, PhysicsManager::BodyType::STATIC);
+	groundB->SetCategoryBits(static_cast<uint16>(ObjectType::GROUND));
+	groundB->SetName("Ground");
+	groundB->SetDebugFill(true);
+	groundB->SetDebugColor(DEBUG_YELLOW);
+
+	PhysicBodyPtr destroyer = m_physicsMgr->AddBox(math::vec2(-750.f, 0.f), math::vec2(50.f, 1000.f), 0.f, PhysicsManager::BodyType::STATIC);
+	destroyer->SetCategoryBits(static_cast<uint16>(ObjectType::DESTROYER));
+	destroyer->SetName("Destroyer");
+
+	m_currGeneration++;
+}
+
+void TrainingScene::RestartGame()
+{
+	// reset variables
+	m_currScore				= 0;
+	m_obstacleSpawnTimer	= 0.f;
+
+	// reset physics
+	m_physicsMgr->Clear();
+	
+	// start game
+	StartGame();
+
+	// start of the scene, randomize weights first
+	if (m_collectedWeights.empty())
 	{
-		if (m_jumpData && m_bulletEntity)
+		for (unsigned i = 0; i < m_agentCount; ++i)
 		{
-			if (m_jumpData->m_inputs[(unsigned)JumpData::INPUT_TYPE::X_DIST] > 0.f &&
-				m_mainEntity->GetPosition().x < m_bulletEntity->GetPosition().x &&
-				m_mainEntity->GetPosition().y > m_bulletEntity->GetPosition().y)
-			{
-				m_jumpData->m_outputs[(unsigned)JumpData::OUTPUT_TYPE::JUMP] = 1.f;
-			}
+			m_birds.emplace_back(std::move(SpawnBird()));
 		}
-		return;
 	}
-
-	if (m_bulletEntity && (m_jumpTimer -= dt) <= 0.f)
+	else
 	{
-		// jump
-		m_mainEntity->AddForceToCenter(math::vec2(0.f, PLAYER_JUMP_FORCE));
-
-		m_isPlayerOnGround = false;
-		m_jumpTimer = m_randomizer.GetRandomFloat();
-		m_jumpData = std::make_unique<JumpData>();
-		m_jumpData->m_inputs[(unsigned)JumpData::INPUT_TYPE::X_DIST] = m_mainEntity->GetPosition().x - m_bulletEntity->GetPosition().x;
-		m_jumpData->m_inputs[(unsigned)JumpData::INPUT_TYPE::X_SPEED] = m_bulletEntity->GetVelocity().x;
-	}
-}
-
-void TrainingScene::UpdateBulletEntity(float dt)
-{
-	if (m_isPlayerOnGround && m_bulletEntity == nullptr)
-	{
-		m_bulletEntity = m_physicsMgr->AddBox(math::vec2(-500.f, -50.f), math::vec2(BULLET_WIDTH, BULLET_HEIGHT), 0.f, PhysicsManager::BodyType::DYNAMIC);
-		m_bulletEntity->SetGravityScale(0.f);
-		m_bulletEntity->AddForceToCenter(math::vec2(m_bulletSpdRandomizer.GetRandomFloat(), 0.f));
-		m_bulletEntity->SetName("Bullet");
+		Selection();
+		Crossover();
 	}
 }
 
 void TrainingScene::ContactEnterCallback(const ContactInfo & contactInfo)
 {
-	bool AisBullet			= "Bullet" == contactInfo.m_bodyA->GetName();
-	bool BisBullet			= "Bullet" == contactInfo.m_bodyB->GetName();
-	bool AisBulletDestroy	= "BulletDestroy" == contactInfo.m_bodyA->GetName();
-	bool BisBulletDestroy	= "BulletDestroy" == contactInfo.m_bodyB->GetName();
-	bool AisMainPlayer		= "MainPlayer" == contactInfo.m_bodyA->GetName();
-	bool BisMainPlayer		= "MainPlayer" == contactInfo.m_bodyB->GetName();
-	bool AisGround			= "Ground" == contactInfo.m_bodyA->GetName();
-	bool BisGround			= "Ground" == contactInfo.m_bodyB->GetName();
+	bool isABird		= contactInfo.m_bodyA->GetName() == "Bird";
+	bool isBBird		= contactInfo.m_bodyB->GetName() == "Bird";
+	bool isAObstacle	= contactInfo.m_bodyA->GetName() == "Obstacle";
+	bool isBObstacle	= contactInfo.m_bodyB->GetName() == "Obstacle";
+	bool isADestroyer	= contactInfo.m_bodyA->GetName() == "Destroyer";
+	bool isBDestroyer	= contactInfo.m_bodyB->GetName() == "Destroyer";
+	bool isAGround		= contactInfo.m_bodyA->GetName() == "Ground";
+	bool isBGround		= contactInfo.m_bodyB->GetName() == "Ground";
 
-	if (AisBullet && BisBulletDestroy)
+	if ((isAObstacle && isBDestroyer) || (isBObstacle && isADestroyer))
 	{
-		if (!contactInfo.m_bodyA->IsDestroyed())
-		{
-			contactInfo.m_bodyA->Destroy();
-			m_bulletEntity.reset();
-		}
+		PhysicsBody* body = isAObstacle ? contactInfo.m_bodyA : contactInfo.m_bodyB;
+		body->Destroy();
+		++m_currScore;
+		m_maxScore	= max(m_maxScore, m_currScore);
 	}
-	else if (BisBullet && AisBulletDestroy)
+	else if (	(isABird && isBObstacle) || 
+				(isBBird && isAObstacle) ||
+				(isABird && isBGround)	 ||
+				(isBBird && isAGround)	)
 	{
-		if (!contactInfo.m_bodyB->IsDestroyed())
+		PhysicBodyPtr nearestObj = GetNearestObstacle();
+		PhysicsBody* pBody = isABird ? contactInfo.m_bodyA : contactInfo.m_bodyB;
+		auto it = std::find_if(m_birds.begin(), m_birds.end(), [&](const BirdInfo& info) { return &(*info.m_bird) == pBody; });
+		if (it != m_birds.end())
 		{
-			contactInfo.m_bodyB->Destroy();
-			m_bulletEntity.reset();
-		}
-	}
-	else if ((AisBullet && BisMainPlayer) || (BisBullet && AisMainPlayer))
-	{
-		if (m_jumpData)
-		{
-			m_jumpData->m_outputs[(unsigned)JumpData::OUTPUT_TYPE::JUMP] = -1.f;
-			m_annTrainer->InputData(m_jumpData->GetInputsAsVector(), m_jumpData->GetOutputsAsVector());
-			m_jumpData.reset();
-		}
-		RestartGame();
-	}
-	else if ((AisGround && BisMainPlayer) || (BisGround && AisMainPlayer))
-	{
-		if (m_jumpData)
-		{
-			if (m_jumpData->m_outputs[(unsigned)JumpData::OUTPUT_TYPE::JUMP] == 0.f)
-				m_jumpData->m_outputs[(unsigned)JumpData::OUTPUT_TYPE::JUMP] = -1.f;	// didn't jump over anything
+			WeightInfo weight;
+			weight.m_distFromHole		= fabs(pBody->GetPosition().y - 0.5f * (reinterpret_cast<PhysicsBody*>(nearestObj->GetUserData())->GetPosition().y + nearestObj->GetPosition().y));
+			weight.m_currPointsOnDeath	= m_currScore;
+			weight.m_weights			= it->m_ann->GetWeights();
+			m_collectedWeights.emplace_back(std::move(weight));
 
-			m_annTrainer->InputData(m_jumpData->GetInputsAsVector(), m_jumpData->GetOutputsAsVector());
-			m_jumpData.reset();
+			it->m_bird->Destroy();
+			m_birds.erase(it);
 		}
-		m_isPlayerOnGround = true;
 	}
 }
 
 void TrainingScene::ContactExitCallback(const ContactInfo & contactInfo)
 {
-	bool AisMainPlayer = "MainPlayer" == contactInfo.m_bodyA->GetName();
-	bool BisMainPlayer = "MainPlayer" == contactInfo.m_bodyB->GetName();
-	bool AisGround = "Ground" == contactInfo.m_bodyA->GetName();
-	bool BisGround = "Ground" == contactInfo.m_bodyB->GetName();
+}
 
-	if ((AisGround && BisMainPlayer) || (BisGround && AisMainPlayer))
+std::shared_ptr<PhysicsBody> TrainingScene::GetNearestObstacle() const
+{
+	float birdBackX = m_birds.front().m_bird->GetPosition().x - m_birds.front().m_bird->GetSize().x * 0.5f;
+	std::vector<PhysicBodyPtr> const & allBodies = m_physicsMgr->GetAllBodies();
+
+	int idx = -1;
+	float currDist = FLT_MAX;
+
+	for (unsigned i = 0; i < allBodies.size(); ++i)
 	{
-		m_isPlayerOnGround = false;
+		if (allBodies[i]->GetName() == "Obstacle")
+		{
+			float xFront = allBodies[i]->GetPosition().x + allBodies[i]->GetSize().x * 0.5f;
+			float diff = xFront - birdBackX;
+			if (diff > 0.f && currDist > diff)
+			{
+				currDist = diff;
+				idx = static_cast<int>(i);
+			}
+		}
+	}
+	return idx == -1 ? nullptr : allBodies[idx];
+}
+
+std::shared_ptr<PhysicsBody> TrainingScene::GetSecondNearestObstacle() const
+{
+	float birdBackX = m_birds.front().m_bird->GetPosition().x - m_birds.front().m_bird->GetSize().x * 0.5f;
+	std::vector<PhysicBodyPtr> const & allBodies = m_physicsMgr->GetAllBodies();
+
+	int idx = -1;
+	float currDist = FLT_MAX, currDist2 = FLT_MAX;
+
+	for (unsigned i = 0; i < allBodies.size(); ++i)
+	{
+		if (allBodies[i]->GetName() == "Obstacle")
+		{
+			float xFront = allBodies[i]->GetPosition().x + allBodies[i]->GetSize().x * 0.5f;
+			float diff = xFront - birdBackX;
+			if (diff > 0.f)
+			{
+				if (currDist > diff)
+				{
+					currDist = diff;
+				}
+				else if (currDist < diff && diff < currDist2)
+				{
+					currDist2 = diff;
+					idx = static_cast<int>(i);
+				}
+			}
+		}
+	}
+	return idx == -1 ? nullptr : allBodies[idx];
+}
+
+TrainingScene::BirdInfo TrainingScene::SpawnBird() const
+{
+	BirdInfo info = SpawnBird(std::vector<fann_type>());
+	return info;
+}
+
+TrainingScene::BirdInfo TrainingScene::SpawnBird(const std::vector<fann_type>& weights) const
+{
+	BirdInfo info;
+
+	info.m_bird = m_physicsMgr->AddBox(math::vec2(-400.f, 0.f), math::vec2(SceneConstants::BirdSize, SceneConstants::BirdSize), 0.f, PhysicsManager::BodyType::DYNAMIC);
+	info.m_bird->SetName("Bird");
+	info.m_bird->SetIsSensor(true);
+	info.m_bird->SetCategoryBits(static_cast<uint16>(ObjectType::BIRD));
+	info.m_bird->SetMaskBits(static_cast<uint16>(ObjectType::GROUND) | static_cast<uint16>(ObjectType::OBSTACLE));
+	info.m_bird->SetDensity(8.f);
+	info.m_bird->SetGravityScale(3.f);
+
+	info.m_currFrame = 0;
+	info.m_animTimer = 0.f;
+
+	static Randomizer colRandomizer(0.f, 1.f);
+	info.m_birdColor = math::vec4(colRandomizer.GetRandomFloat(), colRandomizer.GetRandomFloat(), colRandomizer.GetRandomFloat(), 1.f);
+
+	info.m_delay = SceneConstants::FlapDelay;
+
+	ANNWrapper::ANNConfig config;
+	config.m_epochsBtwnReports	= 5000;
+	config.m_maxEpochs			= 10000;
+	config.m_maxErr				= 0.001f;
+	config.m_numInputs			= 4;
+	config.m_numLayers			= 3;
+	config.m_numNeuronsInHidden = 8;
+	config.m_numOutputs			= 1;
+	info.m_ann = std::make_unique<ANNWrapper>(config);
+
+	if (weights.empty())
+		info.m_ann->RandomizeWeights();
+	else
+		info.m_ann->SetWeights(weights);
+
+	return info;
+}
+
+void TrainingScene::SpawnObstacle()
+{
+	const float obstacleLt = 600.f;
+	const float obstacleSPos = 650.f;
+
+	float rndHeight = SceneConstants::HoleDistanceRange * m_randomizer.GetRandomFloat();
+	float obstacleHalfHt = (obstacleLt + SceneConstants::HoleHeight) * 0.5f;
+
+	PhysicBodyPtr obstacles[]
+	{
+		m_physicsMgr->AddBox(math::vec2(obstacleSPos, rndHeight - obstacleHalfHt), math::vec2(90.f, obstacleLt), 0.f, PhysicsManager::BodyType::DYNAMIC),	// lower
+		m_physicsMgr->AddBox(math::vec2(obstacleSPos, rndHeight + obstacleHalfHt), math::vec2(90.f, obstacleLt), 0.f, PhysicsManager::BodyType::DYNAMIC)	// upper
+	};
+
+	// set user data
+	obstacles[0]->SetUserData(&(*obstacles[1]));
+	obstacles[1]->SetUserData(&(*obstacles[0]));
+
+	math::vec2 f;
+	for (auto & obstacle : obstacles)
+	{
+		obstacle->SetName("Obstacle");
+		obstacle->SetCategoryBits(static_cast<uint16>(ObjectType::OBSTACLE));
+		obstacle->SetMaskBits(static_cast<uint16>(ObjectType::BIRD) | static_cast<uint16>(ObjectType::DESTROYER));
+		obstacle->SetVelocity(math::vec2(-SceneConstants::ObstacleInitialSpeed, 0.f));
+		obstacle->SetIsSensor(true);
+		obstacle->SetGravityScale(0.f);
+		obstacle->SetDebugFill(true);
+		obstacle->SetDebugColor(DEBUG_GREEN);
+
+		f += obstacle->GetPosition();
 	}
 }
 
-void TrainingScene::StartGame()
+void TrainingScene::Selection()
 {
-	m_physicsMgr->AddBox(math::vec2(0.f, -100.f), math::vec2(2400.f, 20.f), 0.f, PhysicsManager::BodyType::STATIC)->SetName("Ground");
-	m_physicsMgr->AddBox(math::vec2(700.f, -100.f), math::vec2(20.f, 400.f), 0.f, PhysicsManager::BodyType::STATIC)->SetName("BulletDestroy");
+	// sort points then dist
+	std::sort(m_collectedWeights.begin(), m_collectedWeights.end(), [](const WeightInfo& l, const WeightInfo & r)
+	{
+		if (l.m_currPointsOnDeath > r.m_currPointsOnDeath)
+			return true;
+		if (l.m_currPointsOnDeath < r.m_currPointsOnDeath)
+			return false;
+		return l.m_distFromHole < r.m_distFromHole;
+	});
 
-	m_mainEntity = m_physicsMgr->AddBox(math::vec2(500.f, -50.f), math::vec2(50.f, 50.f), 0.f, PhysicsManager::BodyType::DYNAMIC);
-	m_mainEntity->SetName("MainPlayer");
-	m_mainEntity->SetDensity(4.5f);
-	m_mainEntity->SetGravityScale(2.f);
-
-	m_gameRestarting = false;
-	m_isPlayerOnGround = false;
-
-	m_jumpTimer = m_randomizer.GetRandomFloat();
+	// get only 10%
+	int max_parents_count = max(2, static_cast<int>(ceil(m_agentCount * 0.1f)));
+	m_collectedWeights = std::vector<WeightInfo>(m_collectedWeights.begin(), m_collectedWeights.begin() + max_parents_count);
 }
 
-void TrainingScene::RestartGame()
+void TrainingScene::Crossover()
 {
-	m_gameRestarting = true;
-}
+	// genetic algorithm starts here
+	for (unsigned i = 0; i < m_agentCount; ++i)
+	{
+		int currIdx = i % m_collectedWeights.size(), other;
+		const std::vector<fann_type>& parentA = m_collectedWeights[currIdx].m_weights;
 
-void TrainingScene::EndGame()
-{
-	m_physicsMgr->Clear();
-	m_bulletEntity.reset();
+		do
+		{
+			other = rand() % m_collectedWeights.size();
+		} while (other == currIdx);
+
+		const std::vector<fann_type>& parentB = m_collectedWeights[other].m_weights;
+		std::vector<fann_type> child = parentA;
+
+		unsigned weightSize = child.size() >> 2;	// 1/4 of the weights will be crossed over 
+		for (unsigned i = 0; i < weightSize; ++i)
+		{
+			float probability = (m_randomizer.GetRandomFloat() + 1.f) * 0.5f;
+			if (probability < 0.45f)
+			{
+				int rndNum = rand() % parentB.size();
+				child[rndNum] = parentB[rndNum];									// get gene from B parent
+			}
+			else if (probability > 0.8f)
+			{
+				child[rand() % child.size()] = m_randomizer.GetRandomFloat();		// mutated gene
+			}
+		}
+
+		m_birds.emplace_back(std::move(SpawnBird(child)));
+	}
+
+	m_collectedWeights.clear();
 }

@@ -125,16 +125,11 @@ void GraphicsManager::SetViewport(int minX, int minY, int maxX, int maxY)
 
 void GraphicsManager::RenderBackground() const
 {
-	GLboolean last_enable_depth_test = glIsEnabled(GL_DEPTH_TEST);
-	glDisable(GL_DEPTH_TEST);
-
 	// render background
 	m_bgShader.UseProgram();
 	m_bgShader.SetMat44("projView", GetMainCamera().Get2DProjection());
 	glBindVertexArray(m_bgBuffer.m_VAO);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-
-	if(last_enable_depth_test) glEnable(GL_DEPTH_TEST);
 }
 
 const float gQuadVertices[20] =
