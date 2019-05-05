@@ -79,6 +79,7 @@ std::vector<ANNWrapper::Connection> ANNWrapper::GetConnections()
 
 std::vector<fann_type> ANNWrapper::Run(std::vector<fann_type> inputs)
 {
+	assert(inputs.size() == m_config.m_numInputs);
 	fann_type * output = fann_run(m_ann, &inputs[0]);
 	std::vector<fann_type> result(output, output + m_config.m_numOutputs);
 	return result;

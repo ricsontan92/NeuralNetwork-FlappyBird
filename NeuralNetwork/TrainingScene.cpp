@@ -1,5 +1,8 @@
 #include "TrainingScene.h"
 
+#include "ImGui/imgui.h"
+
+#include "math.h"
 #include "ANNWrapper.h"
 #include "GLRenderer.h"
 #include "DebugDrawer.h"
@@ -48,21 +51,22 @@ void TrainingScene::Update(float dt)
 
 	for (auto & bird : m_birds)
 	{
+		// compute distances
 		PhysicBodyPtr nearestObj = GetNearestObstacle();
 		PhysicBodyPtr secNearestObj = GetSecondNearestObstacle();
-		float computeMid = 0.5f * (reinterpret_cast<PhysicsBody*>(nearestObj->GetUserData())->GetPosition().y + nearestObj->GetPosition().y);
-		float computeMid2 = secNearestObj ? 0.5f * (reinterpret_cast<PhysicsBody*>(secNearestObj->GetUserData())->GetPosition().y + secNearestObj->GetPosition().y) : 0.f;
-		if ((bird.m_delay -= dt) <= 0.f)
+		float computeMid	= 0.5f * (reinterpret_cast<PhysicsBody*>(nearestObj->GetUserData())->GetPosition().y + nearestObj->GetPosition().y);
+		float computeMid2	= secNearestObj ? 0.5f * (reinterpret_cast<PhysicsBody*>(secNearestObj->GetUserData())->GetPosition().y + secNearestObj->GetPosition().y) : 0.f;
+		
+		if ((bird.m_delay -= dt) <= 0.f)	// delay to simulate finger tapping
 		{
 			float input[static_cast<unsigned>(InputType::COUNT)];
 			input[static_cast<unsigned>(InputType::DIST_FROM_OBSTACLE)]					= nearestObj->GetPosition().x - bird.m_bird->GetPosition().x;
 			input[static_cast<unsigned>(InputType::HEIGHT_FROM_NEAREST_HOLE)]			= computeMid - bird.m_bird->GetPosition().y;
 			input[static_cast<unsigned>(InputType::HEIGHT_FROM_SECOND_NEAREST_HOLE)]	= computeMid2 - bird.m_bird->GetPosition().y;
-			input[static_cast<unsigned>(InputType::VERTICAL_SPEED)]						= bird.m_bird->GetVelocity().y;
 
 			if (bird.m_ann->Run(input)[0] >= 0.f)
 			{
-				bird.m_bird->AddForceToCenter(math::vec2(0.f, SceneConstants::FlapStrength));
+				bird.m_bird->SetVelocity(math::vec2(0.f, SceneConstants::FlapStrength));
 				bird.m_delay = SceneConstants::FlapDelay;
 			}
 		}
@@ -72,6 +76,9 @@ void TrainingScene::Update(float dt)
 			bird.m_animTimer = 0.f;
 			bird.m_currFrame = (bird.m_currFrame + 1) % 14;
 		}
+
+		float maxDeg = bird.m_bird->GetVelocity().y < 0.f ? -45.f : 45.f;
+		bird.m_currAngle = Interpolate(0.f, maxDeg, fabs(bird.m_bird->GetVelocity().y) / SceneConstants::FlapStrength);
 	}
 
 	if (m_birds.empty())
@@ -102,7 +109,7 @@ void TrainingScene::Render() const
 		textureInfo.m_rows = 3;
 		textureInfo.m_currFrame = static_cast<float>(bird.m_currFrame);
 		textureInfo.m_tint = bird.m_birdColor;
-		m_graphicsMgr.GetRenderer().AddTextureToScene(textureInfo, bird.m_bird->GetPosition(), bird.m_bird->GetSize(), 0.f);
+		m_graphicsMgr.GetRenderer().AddTextureToScene(textureInfo, bird.m_bird->GetPosition(), bird.m_bird->GetSize(), bird.m_currAngle);
 	}
 
 	// render obstacles
@@ -316,22 +323,22 @@ TrainingScene::BirdInfo TrainingScene::SpawnBird(const std::vector<fann_type>& w
 	info.m_bird->SetIsSensor(true);
 	info.m_bird->SetCategoryBits(static_cast<uint16>(ObjectType::BIRD));
 	info.m_bird->SetMaskBits(static_cast<uint16>(ObjectType::GROUND) | static_cast<uint16>(ObjectType::OBSTACLE));
-	info.m_bird->SetDensity(8.f);
-	info.m_bird->SetGravityScale(3.f);
+	info.m_bird->SetGravityScale(4.f);
 
+	info.m_currAngle = 0.f;
 	info.m_currFrame = 0;
 	info.m_animTimer = 0.f;
 
 	static Randomizer colRandomizer(0.f, 1.f);
 	info.m_birdColor = math::vec4(colRandomizer.GetRandomFloat(), colRandomizer.GetRandomFloat(), colRandomizer.GetRandomFloat(), 1.f);
 
-	info.m_delay = SceneConstants::FlapDelay;
+	info.m_delay = 0.f;
 
 	ANNWrapper::ANNConfig config;
 	config.m_epochsBtwnReports	= 5000;
 	config.m_maxEpochs			= 10000;
 	config.m_maxErr				= 0.001f;
-	config.m_numInputs			= 4;
+	config.m_numInputs			= static_cast<int>(InputType::COUNT);
 	config.m_numLayers			= 3;
 	config.m_numNeuronsInHidden = 8;
 	config.m_numOutputs			= 1;
@@ -347,8 +354,8 @@ TrainingScene::BirdInfo TrainingScene::SpawnBird(const std::vector<fann_type>& w
 
 void TrainingScene::SpawnObstacle()
 {
-	const float obstacleLt = 600.f;
-	const float obstacleSPos = 650.f;
+	const float obstacleLt		= 600.f;
+	const float obstacleSPos	= 650.f;
 
 	float rndHeight = SceneConstants::HoleDistanceRange * m_randomizer.GetRandomFloat();
 	float obstacleHalfHt = (obstacleLt + SceneConstants::HoleHeight) * 0.5f;
@@ -409,16 +416,16 @@ void TrainingScene::Crossover()
 		const std::vector<fann_type>& parentB = m_collectedWeights[other].m_weights;
 		std::vector<fann_type> child = parentA;
 
-		unsigned weightSize = child.size() >> 2;	// 1/4 of the weights will be crossed over 
+		unsigned weightSize = child.size();	// 1/8 of the weights will be crossed over 
 		for (unsigned i = 0; i < weightSize; ++i)
 		{
 			float probability = (m_randomizer.GetRandomFloat() + 1.f) * 0.5f;
-			if (probability < 0.45f)
+			if (probability <= 0.45f)
 			{
 				int rndNum = rand() % parentB.size();
 				child[rndNum] = parentB[rndNum];									// get gene from B parent
 			}
-			else if (probability > 0.8f)
+			else if (probability >= 0.9)
 			{
 				child[rand() % child.size()] = m_randomizer.GetRandomFloat();		// mutated gene
 			}

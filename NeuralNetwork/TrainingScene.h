@@ -55,7 +55,6 @@ private:
 		DIST_FROM_OBSTACLE,
 		HEIGHT_FROM_NEAREST_HOLE,
 		HEIGHT_FROM_SECOND_NEAREST_HOLE,
-		VERTICAL_SPEED,
 		COUNT
 	};
 
@@ -67,6 +66,7 @@ private:
 		float							m_animTimer;
 		unsigned						m_currFrame;
 		math::vec4						m_birdColor;
+		float							m_currAngle;
 	};
 
 	struct WeightInfo
