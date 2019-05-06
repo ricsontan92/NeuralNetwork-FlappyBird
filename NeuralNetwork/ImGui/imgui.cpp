@@ -3931,7 +3931,39 @@ void ImGui::EndFrame()
 
 void ImGui::Render()
 {
-    ImGuiContext& g = *GImGui;
+	ImGuiContext& g = *GImGui;
+
+	// render credits here
+	ImGui::SetNextWindowPos(ImVec2());
+	ImGui::SetNextWindowSize(ImVec2(g.IO.DisplaySize.x, 0.f));
+	ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
+
+	static const char* credits_text = "Credits: Box2D, fann, SOIL, Dear ImGUI, background image(https://www.picswe.com/), bird image(https://airfreshener.club/), green pole(https://www.forbes.pl/)";
+	static const float credits_len = CalcTextSize(credits_text).x;
+	static float m_timer = 0.f;
+	ImGui::Begin("##CreditsBar", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize);
+	
+	if ((m_timer + credits_len) >= g.IO.DisplaySize.x)
+	{
+		float indentVal = m_timer - g.IO.DisplaySize.x;
+		ImGui::Indent(indentVal);
+		ImGui::Text(credits_text);
+		ImGui::Unindent(indentVal);
+		ImGui::SameLine();
+	}
+
+	ImGui::Indent(m_timer);
+	ImGui::Text(credits_text);
+	ImGui::Unindent(m_timer);
+
+	m_timer = m_timer + g.IO.DeltaTime * 100.f;
+	if (m_timer >= (g.IO.DisplaySize.x + credits_len))
+		m_timer -= g.IO.DisplaySize.x;
+
+	ImGui::End();
+
+	ImGui::PopStyleVar();
+
     IM_ASSERT(g.Initialized);
 
     if (g.FrameCountEnded != g.FrameCount)

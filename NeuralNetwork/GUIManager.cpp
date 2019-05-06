@@ -27,7 +27,7 @@ GUIManager::GUIManager(SceneManager & sceneMgr, AppWindow & appWin) :
 	ImGui_ImplGlfw_InitForOpenGL(m_appWin.GetNativeWindow(), true);
 
 	const char* glsl_version = "#version 130";
-	ImGui_ImplOpenGL3_Init(glsl_version);
+	ImGui_ImplOpenGL3_Init(glsl_version);	
 }
 
 GUIManager::~GUIManager()
@@ -45,7 +45,7 @@ void GUIManager::BegFrame()
 {
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui_ImplGlfw_NewFrame();
-	ImGui::NewFrame();
+	ImGui::NewFrame();	
 }
 
 void GUIManager::EndFrame()
@@ -101,6 +101,16 @@ void GUIManager::RenderOverlay(float alpha)
 	ImGui::PopStyleColor();
 }
 
+void GUIManager::RenderToolTip(const char* message)const
+{
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::BeginTooltip();
+		ImGui::Text(message);
+		ImGui::EndTooltip();
+	}
+}
+
 void GUIManager::RenderGameInfo()
 {
 	// rendering here
@@ -110,6 +120,8 @@ void GUIManager::RenderGameInfo()
 	{
 		m_sceneMgr.SetSceneSpeed(m_sceneMgr.GetSceneSpeed() << 1);
 	}
+
+	RenderToolTip("Accelerate running speed");
 	
 	ImGui::SameLine();
 
@@ -117,6 +129,8 @@ void GUIManager::RenderGameInfo()
 	{
 		m_sceneMgr.SetSceneSpeed(m_sceneMgr.GetSceneSpeed() >> 1);
 	}
+
+	RenderToolTip("Deccelerate running speed");
 
 	ImGui::SameLine();
 	ImGui::Text("(x%d)", m_sceneMgr.GetSceneSpeed());

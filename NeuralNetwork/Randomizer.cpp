@@ -22,9 +22,5 @@ int Randomizer::GetRandomInt()
 
 float Randomizer::GetRandomFloat()
 {
-	switch (rand() % 2)
-	{
-	case 0:		return m_distributionFloat(m_rndGen);
-	default:	return m_minVal + (m_maxVal - m_minVal) * (rand() / static_cast<float>(RAND_MAX));
-	}
+	return m_distributionFloat(m_rndGen);
 }

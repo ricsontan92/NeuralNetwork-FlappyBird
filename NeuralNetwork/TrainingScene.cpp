@@ -339,8 +339,8 @@ TrainingScene::BirdInfo TrainingScene::SpawnBird(const std::vector<fann_type>& w
 	config.m_maxEpochs			= 10000;
 	config.m_maxErr				= 0.001f;
 	config.m_numInputs			= static_cast<int>(InputType::COUNT);
-	config.m_numLayers			= 3;
-	config.m_numNeuronsInHidden = 8;
+	config.m_numLayers			= 2;
+	config.m_numNeuronsInHidden = 3;
 	config.m_numOutputs			= 1;
 	info.m_ann = std::make_unique<ANNWrapper>(config);
 
@@ -406,26 +406,25 @@ void TrainingScene::Crossover()
 	for (unsigned i = 0; i < m_agentCount; ++i)
 	{
 		int currIdx = i % m_collectedWeights.size(), other;
-		const std::vector<fann_type>& parentA = m_collectedWeights[currIdx].m_weights;
-
 		do
 		{
 			other = rand() % m_collectedWeights.size();
 		} while (other == currIdx);
 
+		const std::vector<fann_type>& parentA = m_collectedWeights[currIdx].m_weights;
 		const std::vector<fann_type>& parentB = m_collectedWeights[other].m_weights;
 		std::vector<fann_type> child = parentA;
 
-		unsigned weightSize = child.size();	// 1/8 of the weights will be crossed over 
+		unsigned weightSize = child.size() >> 1;	// 1/2 of the weights will be crossed over 
 		for (unsigned i = 0; i < weightSize; ++i)
 		{
 			float probability = (m_randomizer.GetRandomFloat() + 1.f) * 0.5f;
-			if (probability <= 0.45f)
+			if (probability <= 0.9f)
 			{
 				int rndNum = rand() % parentB.size();
 				child[rndNum] = parentB[rndNum];									// get gene from B parent
 			}
-			else if (probability >= 0.9)
+			else
 			{
 				child[rand() % child.size()] = m_randomizer.GetRandomFloat();		// mutated gene
 			}

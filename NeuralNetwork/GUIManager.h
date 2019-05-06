@@ -17,6 +17,7 @@ private:
 	void EndFrame();
 	void RenderOverlay(float alpha);
 
+	void RenderToolTip( const char* message )const;
 	void RenderGameInfo();
 	void RenderGameConfig();
 
