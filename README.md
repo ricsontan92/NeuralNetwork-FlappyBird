@@ -7,11 +7,11 @@ Playing Flappy bird using Neural Network and Genetic Algorithm in C++
   1) Horizatontal distance from the bird to the nearest obstacle
   2) Vertical distance from the bird to the opening in the nearest obstacle
   3) Vertical distance from the bird to the opening in the SECOND nearest obstacle
-- Has no Hidden layers
+- Has no hidden layers
 
 **************************** Genetic Algorithm ****************************
 
-Let N be the number of agent spawn per generation
+Let "N" be the number of agent spawn per generation
 
 - Selection
   + User can select number of agents to be spawned per generation (default: 50)
@@ -20,8 +20,8 @@ Let N be the number of agent spawn per generation
     2) Vertical distance from the bird to the opening in the nearest obstacle
     For example,
       Bird 1: 100 points, 200 Vertical Distance
-      Bird 2: 50 points, 50 Vertical Distance
-      Bird 3: 50 points, 10 Vertical Distance
+      Bird 2: 50 points,  50 Vertical Distance
+      Bird 3: 50 points,  10 Vertical Distance
       
       1st Place(Fittesst) : Bird 1 (Because it survived the longest)
       2nd Place           : Bird 3 (Because the points of 2 and 3 are the same, vertical distance will be used)
