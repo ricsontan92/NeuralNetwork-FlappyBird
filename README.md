@@ -2,6 +2,7 @@
 Playing Flappy bird using Neural Network and Genetic Algorithm in C++
 
 **************************** Neural network ****************************
+
 - Takes in 3 inputs
   1) Horizatontal distance from the bird to the nearest obstacle
   2) Vertical distance from the bird to the opening in the nearest obstacle
@@ -9,6 +10,7 @@ Playing Flappy bird using Neural Network and Genetic Algorithm in C++
 - Has no Hidden layers
 
 **************************** Genetic Algorithm ****************************
+
 Let N be the number of agent spawn per generation
 
 - Selection
